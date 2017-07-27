@@ -1,0 +1,14 @@
+# User settings for Qt project
+*.pro.user
+
+# Compiler output directories
+debug/
+release/
+
+# Makefiles
+Makefile
+Makefile.Debug
+Makefile.Release
+
+# MSVC auxiliary files
+vc*.pdb
