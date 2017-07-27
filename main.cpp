@@ -76,12 +76,23 @@ int main(int argc, char *argv[])
     // Convert image to PDF
     QString inputFileName(QCoreApplication::arguments().at(1));
 
-    QString outputFileName;
-    if (QCoreApplication::arguments().last().endsWith(".pdf", Qt::CaseInsensitive))
-        outputFileName = QCoreApplication::arguments().last();
-
     const QPrinter::PageSize pageSize = QPrinter::A4;
     const QPrinter::Orientation pageOrientation = QPrinter::Landscape;
+    QPrinter::OutputFormat outputFormat = QPrinter::PdfFormat;
+    const QPrinter::ColorMode colorMode = QPrinter::Color;
+
+    QString outputFileName;
+    if (args.last().endsWith(".pdf", Qt::CaseInsensitive))
+    {
+        outputFileName = args.last();
+        outputFormat = QPrinter::PdfFormat;
+    }
+    else if (args.last().endsWith(".ps", Qt::CaseInsensitive))
+    {
+        outputFileName = args.last();
+        outputFormat = QPrinter::PostScriptFormat;
+    }
+
 
     QImage image(inputFileName);
     if (image.isNull())
@@ -92,8 +103,8 @@ int main(int argc, char *argv[])
 
     QPrinter printer(QPrinter::ScreenResolution);
     printer.setOutputFileName(outputFileName);
-    printer.setOutputFormat(QPrinter::PdfFormat);
-    printer.setColorMode(QPrinter::Color);
+    printer.setOutputFormat(outputFormat);
+    printer.setColorMode(colorMode);
     printer.setPaperSize(pageSize);
     printer.setOrientation(pageOrientation);
 
