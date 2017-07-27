@@ -27,6 +27,14 @@ int main(int argc, char *argv[])
         FileFailure
     };
 
+    enum ConversionScenario
+    {
+        ConvertSingleScreenshot,
+        ConvertMultipleScreenshots,
+        ConvertAndUnifyMultipleImages,
+        ConvertMultiplePhotos
+    };
+
     QTextStream out(stdout);
     QTextStream err(stderr);
 
@@ -56,8 +64,12 @@ int main(int argc, char *argv[])
       */
 
     // Convert image to PDF
-    const QString inputFileName(QCoreApplication::arguments().at(1));
-    const QString outputFileName(QCoreApplication::arguments().at(2));
+    QString inputFileName(QCoreApplication::arguments().at(1));
+
+    QString outputFileName;
+    if (QCoreApplication::arguments().last().endsWith(".pdf", Qt::CaseInsensitive))
+        outputFileName = QCoreApplication::arguments().last();
+
     const QPrinter::PageSize pageSize = QPrinter::A4;
     const QPrinter::Orientation pageOrientation = QPrinter::Landscape;
 
