@@ -46,6 +46,16 @@ int main(int argc, char *argv[])
     }
 
     // TODO Process options
+    bool verbose = false;
+
+    QStringList args = QCoreApplication::arguments();
+    for (int i = 1; i < args.length(); i++)
+    {
+        QString arg = args.at(i);
+
+        if (arg == "-v" || arg == "--verbose")
+            verbose = true;
+    }
 
     /*
       Some ideas about the options:
