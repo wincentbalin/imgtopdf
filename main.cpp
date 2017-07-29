@@ -1,9 +1,12 @@
 #include <QCoreApplication>
 #include <QTextStream>
+#include <QThread>
+#include <QDir>
 #include <QImage>
 #include <QImageReader>
 #include <QPrinter>
 #include <QPainter>
+#include <QFuture>
 
 
 void printSupportedFormats(QTextStream &out)
@@ -38,15 +41,19 @@ int main(int argc, char *argv[])
     QTextStream out(stdout);
     QTextStream err(stderr);
 
-    if (argc < 3)
+    out << "Hello!";
+    if (argc < 2)
     {
         err << "Usage:";
         err << "\timgtopdf input.img output.pdf";
-        return ArgumentError;
+//        return ArgumentError;
     }
 
     // TODO Process options
     bool verbose = false;
+    bool listFormatsAndExit = false;
+    QStringList fileNames;
+    int multiProcessingThreads = QThread::idealThreadCount();
 
     QStringList args = QCoreApplication::arguments();
     for (int i = 1; i < args.length(); i++)
@@ -55,22 +62,26 @@ int main(int argc, char *argv[])
 
         if (arg == "-v" || arg == "--verbose")
             verbose = true;
+        else if (arg == "-l" || arg == "--list" || arg == "--list-formats")
+            listFormatsAndExit = true;
+        else if (arg == "-s" || arg == "--singlethreaded")
+            multiProcessingThreads = 1;
+        else
+            fileNames.append(arg);
     }
 
     /*
       Some ideas about the options:
       - page size (A4, Letter, etc.)
       - list image formats (method already here)
-      - resolution (default one is for screenshots, but what about photographs?);
-        how do we specify resolution? 600 [dpi], 300x300 [dpi], 8m [egapixel];
-        in the last case calculate resolution and orientation depending on image's resolution and page size
-      - fit images to page; default mode is to draw directly; in direct relation to previous option
-      - should we probably let the utility determine resolution automatically?
+      - heuristics: calculate image size with requested resolution; if size is greater that the page in any dimension, perform scaling
+      - resolution (default one is for screenshots, but what about larger resolutions?); how do we specify resolution? 600 [dpi]
       - derive output PDF file name from image file name
       - building upon previous idea: try to glob input filename and process multiple inputs
       - special option: unify (concatenate all pages to a single PDF file)
       - output directory, in case that we convert images directly from camera
       - center: center images, instead of moving them to the top left corner
+      - use multiple processors by default; a special option for single processors
       */
 
     // Convert image to PDF
@@ -81,15 +92,47 @@ int main(int argc, char *argv[])
     QPrinter::OutputFormat outputFormat = QPrinter::PdfFormat;
     const QPrinter::ColorMode colorMode = QPrinter::Color;
 
-    QString outputFileName;
-    if (args.last().endsWith(".pdf", Qt::CaseInsensitive))
+    QStringList expandedFileNames;
+    foreach (QString fileName, fileNames)
     {
-        outputFileName = args.last();
+        const QString parentPath = QFileInfo(fileName).absolutePath();
+        QStringList pathStack;
+        pathStack.append(parentPath);
+
+        while (!pathStack.isEmpty())
+        {
+            QDir dir(pathStack.takeLast());
+            dir.setFilter(QDir::Dirs | QDir::Files | QDir::NoSymLinks | QDir::NoDot | QDir::NoDotDot);
+            out << dir.absolutePath();
+
+            foreach (QFileInfo fi, dir.entryInfoList())
+            {
+                const QString absPath = fi.absoluteFilePath();
+                out << "absPath" << absPath;
+                if (fi.isFile() && QDir::match(fileName, absPath))
+                {
+                    expandedFileNames.append(absPath);
+                    if (verbose)
+                        out << "Found" << absPath;
+                }
+                else if (fi.isDir())
+                    pathStack.append(absPath);
+            }
+        }
+    }
+    fileNames = expandedFileNames;
+
+    QString resultingFileName;
+    if (fileNames.last().endsWith(".pdf", Qt::CaseInsensitive))
+    {
+        resultingFileName = fileNames.last();
+        fileNames.removeLast();
         outputFormat = QPrinter::PdfFormat;
     }
-    else if (args.last().endsWith(".ps", Qt::CaseInsensitive))
+    else if (fileNames.last().endsWith(".ps", Qt::CaseInsensitive))
     {
-        outputFileName = args.last();
+        resultingFileName = fileNames.last();
+        fileNames.removeLast();
         outputFormat = QPrinter::PostScriptFormat;
     }
 
@@ -102,7 +145,7 @@ int main(int argc, char *argv[])
     }
 
     QPrinter printer(QPrinter::ScreenResolution);
-    printer.setOutputFileName(outputFileName);
+    printer.setOutputFileName(resultingFileName);
     printer.setOutputFormat(outputFormat);
     printer.setColorMode(colorMode);
     printer.setPaperSize(pageSize);
