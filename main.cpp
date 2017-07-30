@@ -6,15 +6,7 @@
 #include <QImageReader>
 #include <QPrinter>
 #include <QPainter>
-#include <QFuture>
 
-
-void printSupportedFormats(QTextStream &out)
-{
-    out << "Supported formats:";
-    foreach(QByteArray format, QImageReader::supportedImageFormats())
-        out << format;
-}
 
 int main(int argc, char *argv[])
 {
@@ -41,19 +33,27 @@ int main(int argc, char *argv[])
     QTextStream out(stdout);
     QTextStream err(stderr);
 
-    out << "Hello!";
-    if (argc < 2)
+    QStringList helpOptions;
+    helpOptions << "-?" << "-h" << "--help";
+    if (argc < 2 ||
+        (argc == 2 && helpOptions.contains(QCoreApplication::arguments().at(1))))
     {
         err << "Usage:";
         err << "\timgtopdf input.img output.pdf";
-//        return ArgumentError;
+        return ArgumentError;
     }
 
     // TODO Process options
     bool verbose = false;
-    bool listFormatsAndExit = false;
-    QStringList fileNames;
+    bool listImageFormatsAndExit = false;
+    bool listPageSizesAndExit = false;
+    QStringList filePatterns;
     int multiProcessingThreads = QThread::idealThreadCount();
+
+    const QPrinter::PaperSize paperSize = QPrinter::A4;
+    const QPrinter::Orientation pageOrientation = QPrinter::Landscape;
+    QPrinter::OutputFormat outputFormat = QPrinter::PdfFormat;
+    const QPrinter::ColorMode colorMode = QPrinter::Color;
 
     QStringList args = QCoreApplication::arguments();
     for (int i = 1; i < args.length(); i++)
@@ -62,12 +62,24 @@ int main(int argc, char *argv[])
 
         if (arg == "-v" || arg == "--verbose")
             verbose = true;
-        else if (arg == "-l" || arg == "--list" || arg == "--list-formats")
-            listFormatsAndExit = true;
+        else if (arg == "--list-image-formats")
+            listImageFormatsAndExit = true;
+        else if (arg == "--list-page-sizes")
+            listPageSizesAndExit = true;
         else if (arg == "-s" || arg == "--singlethreaded")
             multiProcessingThreads = 1;
+        else if (arg.startsWith("-"))
+            err << "Unknown option: " << arg << endl;
         else
-            fileNames.append(arg);
+            filePatterns.append(arg);
+    }
+
+    if (listImageFormatsAndExit)
+    {
+        out << "Supported image formats:" << endl;
+        foreach(QByteArray format, QImageReader::supportedImageFormats())
+            out << format << endl;
+        return Success;
     }
 
     /*
@@ -80,96 +92,118 @@ int main(int argc, char *argv[])
       - building upon previous idea: try to glob input filename and process multiple inputs
       - special option: unify (concatenate all pages to a single PDF file)
       - output directory, in case that we convert images directly from camera
-      - center: center images, instead of moving them to the top left corner
+      - center images by default
       - use multiple processors by default; a special option for single processors
       */
 
-    // Convert image to PDF
-    QString inputFileName(QCoreApplication::arguments().at(1));
 
-    const QPrinter::PageSize pageSize = QPrinter::A4;
-    const QPrinter::Orientation pageOrientation = QPrinter::Landscape;
-    QPrinter::OutputFormat outputFormat = QPrinter::PdfFormat;
-    const QPrinter::ColorMode colorMode = QPrinter::Color;
-
-    QStringList expandedFileNames;
-    foreach (QString fileName, fileNames)
+    // Collect input file names
+    QStringList fileNames;
+    foreach (QString filePattern, filePatterns)
     {
-        const QString parentPath = QFileInfo(fileName).absolutePath();
-        QStringList pathStack;
-        pathStack.append(parentPath);
+        const QFileInfo fi(filePattern);
+        const QString absPath = fi.absoluteFilePath();
 
-        while (!pathStack.isEmpty())
+        if (fi.isFile() && QImageReader(absPath).canRead())
         {
-            QDir dir(pathStack.takeLast());
+            if (verbose)
+                out << "Found " << absPath << endl << flush;
+            fileNames.append(absPath);
+        }
+        else if (fi.isDir() && fi.isExecutable())
+        {
+            QDir dir(filePattern);
             dir.setFilter(QDir::Dirs | QDir::Files | QDir::NoSymLinks | QDir::NoDot | QDir::NoDotDot);
-            out << dir.absolutePath();
 
-            foreach (QFileInfo fi, dir.entryInfoList())
+            foreach (QFileInfo entryInfo, dir.entryInfoList())
             {
-                const QString absPath = fi.absoluteFilePath();
-                out << "absPath" << absPath;
-                if (fi.isFile() && QDir::match(fileName, absPath))
+                const QString entryInfoAbsPath = entryInfo.absoluteFilePath();
+                if (entryInfo.isFile() && QImageReader(entryInfoAbsPath).canRead())
                 {
-                    expandedFileNames.append(absPath);
                     if (verbose)
-                        out << "Found" << absPath;
+                        out << "Found " << entryInfoAbsPath << endl;
+                    fileNames.append(entryInfoAbsPath);
                 }
-                else if (fi.isDir())
-                    pathStack.append(absPath);
             }
         }
     }
-    fileNames = expandedFileNames;
 
-    QString resultingFileName;
-    if (fileNames.last().endsWith(".pdf", Qt::CaseInsensitive))
+    // Extract single output filename, if supplied
+    QString singleOutputFileName;
+    if (!filePatterns.isEmpty())
     {
-        resultingFileName = fileNames.last();
-        fileNames.removeLast();
-        outputFormat = QPrinter::PdfFormat;
+        if (filePatterns.last().endsWith(".pdf", Qt::CaseInsensitive))
+        {
+            singleOutputFileName = filePatterns.takeLast();
+            outputFormat = QPrinter::PdfFormat;
+        }
+        else if (filePatterns.last().endsWith(".ps", Qt::CaseInsensitive))
+        {
+            singleOutputFileName = filePatterns.takeLast();
+            outputFormat = QPrinter::PostScriptFormat;
+        }
     }
-    else if (fileNames.last().endsWith(".ps", Qt::CaseInsensitive))
+    if (verbose && !singleOutputFileName.isEmpty())
+        out << "Output file is " << singleOutputFileName << flush;
+
+    // Check for at least one input file
+    if (fileNames.isEmpty())
     {
-        resultingFileName = fileNames.last();
-        fileNames.removeLast();
-        outputFormat = QPrinter::PostScriptFormat;
-    }
-
-
-    QImage image(inputFileName);
-    if (image.isNull())
-    {
-        err << "Could not load image" << inputFileName;
-        return FileFailure;
-    }
-
-    QPrinter printer(QPrinter::ScreenResolution);
-    printer.setOutputFileName(resultingFileName);
-    printer.setOutputFormat(outputFormat);
-    printer.setColorMode(colorMode);
-    printer.setPaperSize(pageSize);
-    printer.setOrientation(pageOrientation);
-
-    bool result;
-    QPainter painter;
-
-    result = painter.begin(&printer);
-    if (!result)
-    {
-        err << "Could not start conversion";
-        return FileFailure;
+        err << "No input files" << endl;
+        return ParseFailure;
     }
 
-    painter.drawImage(QPoint(0, 0), image);
-
-    result = painter.end();
-    if (!result)
+    // Convert images to PDF
+    foreach (QString inputFileName, fileNames)
     {
-        err << "Could not end conversion";
-        return FileFailure;
-    }
+        if (verbose)
+            out << "Processing " << inputFileName << flush;
 
+        QImage image(inputFileName);
+        if (image.isNull())
+        {
+            err << "Could not load image " << inputFileName;
+            continue;
+        }
+
+        QPrinter printer(QPrinter::ScreenResolution);
+        printer.setOutputFileName(singleOutputFileName);
+        printer.setOutputFormat(outputFormat);
+        printer.setPaperSize(paperSize);
+        printer.setOrientation(pageOrientation);
+        int r = printer.resolution();
+
+        switch (image.format())
+        {
+        case QImage::Format_Mono:
+        case QImage::Format_MonoLSB:
+            printer.setColorMode(QPrinter::GrayScale);
+            break;
+
+        default:
+            printer.setColorMode(QPrinter::Color);
+            break;
+        }
+
+        bool result;
+        QPainter painter;
+
+        result = painter.begin(&printer);
+        if (!result)
+        {
+            err << "Could not start conversion";
+            return FileFailure;
+        }
+
+        painter.drawImage(QPoint(0, 0), image);
+
+        result = painter.end();
+        if (!result)
+        {
+            err << "Could not end conversion";
+            return FileFailure;
+        }
+    }
 
     return Success;
 }
