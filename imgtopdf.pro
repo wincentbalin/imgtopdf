@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       += core svg
+QT       += core gui svg
 
 TARGET = imgtopdf
 CONFIG   += console
@@ -15,3 +15,11 @@ TEMPLATE = app
 SOURCES += main.cpp
 
 win32: QMAKE_LFLAGS += -Wl,--large-address-aware
+
+CONFIG(static) {
+    DEFINES += USE_STATIC
+    CONFIG += static_qt_plugins
+    QTPLUGIN += qico qsvg qtga
+    LIBS += -L$$[QT_INSTALL_PLUGINS]/iconengines
+    QMAKE_LFLAGS *= -static -lpthread -static-libstdc++ -static-libgcc
+}
