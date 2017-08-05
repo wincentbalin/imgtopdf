@@ -8,6 +8,47 @@
 #include <QPainter>
 
 
+QString paperSizeToString(QPrinter::PaperSize size)
+{
+    switch (size)
+    {
+    case QPrinter::A0: return "A0"; break;
+    case QPrinter::A1: return "A1"; break;
+    case QPrinter::A2: return "A2"; break;
+    case QPrinter::A3: return "A3"; break;
+    case QPrinter::A4: return "A4"; break;
+    case QPrinter::A5: return "A5"; break;
+    case QPrinter::A6: return "A6"; break;
+    case QPrinter::A7: return "A7"; break;
+    case QPrinter::A8: return "A8"; break;
+    case QPrinter::A9: return "A9"; break;
+    case QPrinter::B0: return "B0"; break;
+    case QPrinter::B1: return "B1"; break;
+    case QPrinter::B2: return "B2"; break;
+    case QPrinter::B3: return "B3"; break;
+    case QPrinter::B4: return "B4"; break;
+    case QPrinter::B5: return "B5"; break;
+    case QPrinter::B6: return "B6"; break;
+    case QPrinter::B7: return "B7"; break;
+    case QPrinter::B8: return "B8"; break;
+    case QPrinter::B9: return "B9"; break;
+    case QPrinter::B10: return "B10"; break;
+    case QPrinter::C5E: return "C5E"; break;
+    case QPrinter::Comm10E: return "Comm10E"; break;
+    case QPrinter::Custom: return "Custom"; break;
+    case QPrinter::DLE: return "DLE"; break;
+    case QPrinter::Executive: return "Executive"; break;
+    case QPrinter::Folio: return "Folio"; break;
+    case QPrinter::Ledger: return "Ledger"; break;
+    case QPrinter::Legal: return "Legal"; break;
+    case QPrinter::Letter: return "Letter"; break;
+    case QPrinter::Tabloid: return "Tabloid"; break;
+    }
+
+    return "Impossible";
+}
+
+
 int main(int argc, char *argv[])
 {
     QCoreApplication a(argc, argv);
@@ -79,6 +120,14 @@ int main(int argc, char *argv[])
         out << "Supported image formats:" << endl;
         foreach(QByteArray format, QImageReader::supportedImageFormats())
             out << format << endl;
+        return Success;
+    }
+
+    if (listPageSizesAndExit)
+    {
+        out << "Supported page sizes:" << endl;
+        for (int size = QPrinter::A4; size <= QPrinter::NPaperSize; size++)  // <= is needed for QPrinter::Custom
+            out << paperSizeToString(static_cast<QPrinter::PaperSize>(size)) << endl;
         return Success;
     }
 
