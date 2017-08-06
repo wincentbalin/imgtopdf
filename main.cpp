@@ -119,10 +119,24 @@ int main(int argc, char *argv[])
 
     if (listPageSizesAndExit)
     {
+        QPrinter printer;
         QList<QString> paperSizes = paperSizeStrings.values();
         qSort(paperSizes);
         foreach (QString size, paperSizes)
-            out << size << endl;
+        {
+            if (size == "Custom")
+            {
+                out << size << " (set dimensions by yourself)" << endl;
+            }
+            else
+            {
+                printer.setPaperSize(paperSizeStrings.key(size));
+                QRectF paperRect = printer.paperRect(QPrinter::Millimeter);
+                out << size << QString(" (%1 mm x %2 mm)")
+                                   .arg(qRound(paperRect.width()))
+                                   .arg(qRound(paperRect.height())) << endl;
+            }
+        }
         return Success;
     }
 
