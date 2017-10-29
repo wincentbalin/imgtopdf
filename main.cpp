@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
     // As in http://doc.qt.io/qt-4.8/qt-xml-xmlstreamlint-main-cpp.html
     enum ExitCode
     {
-        Success,
+        Success = 0,
         ParseFailure,
         ArgumentError,
         WriteError,
