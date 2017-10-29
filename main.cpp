@@ -152,6 +152,8 @@ int main(int argc, char *argv[])
       - output directory, in case that we convert images directly from camera
       - center images by default
       - use multiple processors by default; a special option for single processors
+      - set custom page size
+      - set page margins
       */
 
 
